@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import "./App.css";
 
+import { db } from "./firebase";
+import { collection, addDoc, getDocs, query, orderBy } from "firebase/firestore";
+
 const contact = {
   email: "devforge3d@gmail.com",
   phone: "06/30-662-2488",
@@ -287,14 +290,27 @@ function Reviews() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("devforge_reviews_v3");
-    if (stored) {
+    const loadReviews = async () => {
       try {
-        setReviews(JSON.parse(stored));
-      } catch {
-        setReviews([]);
+        const q = query(
+          collection(db, "reviews"),
+          orderBy("createdAt", "desc")
+        );
+  
+        const querySnapshot = await getDocs(q);
+  
+        const loadedReviews = querySnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+  
+        setReviews(loadedReviews);
+      } catch (error) {
+        console.error("Vélemények betöltési hiba:", error);
       }
-    }
+    };
+  
+    loadReviews();
   }, []);
 
   const handleChange = (event) => {
@@ -303,24 +319,35 @@ function Reviews() {
     setSaved(false);
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-
+  
     const cleanReview = {
       id: Date.now(),
       name: form.name.trim(),
       project: form.project.trim() || "Ügyfél",
       rating: Number(form.rating),
       message: form.message.trim(),
+      createdAt: new Date(),
     };
-
-    if (!cleanReview.name || !cleanReview.message) return;
-
-    const nextReviews = [cleanReview, ...reviews];
-    setReviews(nextReviews);
-    localStorage.setItem("devforge_reviews_v3", JSON.stringify(nextReviews));
-    setForm({ name: "", project: "", rating: "5", message: "" });
-    setSaved(true);
+  
+    try {
+      await addDoc(collection(db, "reviews"), cleanReview);
+  
+      setReviews([cleanReview, ...reviews]);
+  
+      setForm({
+        name: "",
+        project: "",
+        rating: 5,
+        message: "",
+      });
+  
+      alert("Visszajelzés sikeresen elküldve!");
+    } catch (error) {
+      console.error(error);
+      alert("Hiba történt mentés közben.");
+    }
   };
 
   return (
